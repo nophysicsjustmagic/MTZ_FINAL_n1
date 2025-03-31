@@ -2,8 +2,8 @@ import os
 from app.data.generators import DataGenerator
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse, HTMLResponse
-from app.database.session import SessionLocal  # Правильный относительный импорт
-from app.database.models import TrainingHistory  # Импорт модели
+from app.database.session import SessionLocal, engine  # Правильный относительный импорт
+from app.database.models import TrainingHistory, Base  # Импорт модели
 from app.ml.trainers import ModelTrainer
 from app.ml.visualisers import Visualizer
 from app.data.processors import DataProcessor
@@ -57,22 +57,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, Text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# ------------------------------------------------
-# Инициализация FastAPI и создание эндпоинтов
-# ------------------------------------------------
-
-app = FastAPI(title="Сервис обработки данных и обучения модели МТЗ")
-
-# Генерируем и сохраняем основной набор данных (один раз при запуске)
-DATA_FILE = os.path.join(DATA_DIR, "synthetic_mtz_data.csv")
-if not os.path.exists(DATA_FILE):
-
-    for i in range(8):
-        df_init = DataGenerator.generate_synthetic_data(random_state = 42+(10*i))
-        DATA_FILE_TMP = os.path.join(DATA_DIR, f"synthetic_mtz_data{i}.csv")
-        df_init.to_csv(f'{DATA_FILE_TMP}', index=False)
-        print(f"Синтетические данные набора {i} сохранены в {DATA_FILE_TMP}")
-        df_init.to_csv(f'{DATA_FILE}', index=False)
 
 import numpy as np
 import pandas as pd
@@ -110,6 +94,7 @@ from sqlalchemy.orm import sessionmaker
 # Инициализация FastAPI и создание эндпоинтов
 # ------------------------------------------------
 
+Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Сервис обработки данных и обучения модели МТЗ")
 
 # Генерируем и сохраняем основной набор данных (один раз при запуске)
@@ -312,7 +297,8 @@ async def predict_visual(file: UploadFile = File(...)):
 def visualize_full(file: str = None):
     """
     Выполняет полный конвейер (загрузка/подготовка, фильтрация, обучение)
-    и возвращает итоговую визуализацию (6 подграфиков) в виде одного изображения PNG.
+    и возвращает итоговую визуализацию (6 подграфиков: 3 исходных кривых и 3 после обработки) в виде одного изображения PNG.
+    И 2 графика: потери и точность
     Если указан параметр file, используется этот CSV-файл, иначе synthetic_mtz_data.csv.
     """
     history_data = None
